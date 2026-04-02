@@ -7,46 +7,45 @@
 body {
   margin: 0;
   background: #666;
-  text-align: center;
   font-family: Arial;
   color: white;
+  text-align: center;
 }
 
-/* TOP BAR */
+/* TOP */
 #topBar {
   display: flex;
   justify-content: space-between;
   padding: 10px 30px;
-  font-size: 20px;
-}
-
-/* BUTTON */
-#pauseBtn {
-  padding: 5px 15px;
-  cursor: pointer;
-  background: black;
-  color: white;
-  border: none;
 }
 
 /* GAME AREA */
 #gameArea {
-  margin-top: 50px;
+  position: relative;
+  width: 400px;
+  height: 450px;
+  margin: 40px auto;
+  background: #777;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-/* 🔵 BAR */
+/* 🔵 BAR (LOWER NOW) */
 #line {
+  position: absolute;
+  bottom: 100px; /* ↓ moved down */
+  left: 30px;
   width: 340px;
   height: 10px;
   background: cyan;
-  margin: 100px auto 20px;
 }
 
-/* 🎨 BLOCKS */
+/* 🎨 BLOCKS (LOWER) */
 #blocks {
+  position: absolute;
+  bottom: 30px; /* ↓ moved down */
+  left: 30px;
   display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
 }
 
 .block {
@@ -56,7 +55,7 @@ body {
 }
 
 .selected {
-  outline: 4px solid white;
+  outline: 3px solid white;
 }
 
 /* BALL */
@@ -67,24 +66,24 @@ body {
   position: absolute;
 }
 
-/* ⭐ LEADERBOARD */
+/* LEADERBOARD */
 #leaderboard {
-  background: #222;
-  padding: 15px 25px;
-  border-radius: 12px;
-  width: fit-content;
+  width: 300px;
   margin: 20px auto;
+  background: #222;
+  padding: 15px;
+  border-radius: 10px;
 }
 
-table {
-  border-collapse: collapse;
-}
-
-td {
-  padding: 6px 20px;
+.item {
+  display: flex;
+  justify-content: space-between;
+  background: #333;
+  margin: 5px;
+  padding: 8px;
+  border-radius: 6px;
 }
 </style>
-
 </head>
 
 <body>
@@ -92,7 +91,6 @@ td {
 <div id="topBar">
   <div>Score: <span id="score">0</span></div>
   <div>High Score: <span id="highScore">0</span></div>
-  <button id="pauseBtn">Pause</button>
 </div>
 
 <div id="gameArea">
@@ -106,38 +104,47 @@ td {
     <div class="block" style="background: pink;"></div>
   </div>
 
-  <!-- ⭐ LEADERBOARD BELOW -->
-  <div id="leaderboard">
-    <h3>Leaderboard</h3>
-    <table>
-      <tr><td>🇮🇳 Ravi</td><td>25</td></tr>
-      <tr><td>🇺🇸 John</td><td>20</td></tr>
-      <tr><td>🇯🇵 Ken</td><td>15</td></tr>
-    </table>
-  </div>
-
 </div>
 
-<script>
+<div id="leaderboard">
+  <h3>Leaderboard</h3>
+  <div id="list"></div>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC_Pj3FjqQC_eujcMLa9_a-vYkst0ij5VQ",
+  authDomain: "tcodetech.firebaseapp.com",
+  databaseURL: "https://tcodetech-default-rtdb.firebaseio.com",
+  projectId: "tcodetech"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// GAME
 let colors = ["yellow","cyan","green","pink"];
 let selected = 0;
 let score = 0;
 let highScore = localStorage.getItem("highScore") || 0;
-let paused = false;
-
-const blocks = document.querySelectorAll(".block");
-const line = document.getElementById("line");
 
 document.getElementById("highScore").innerText = highScore;
 
+const blocks = document.querySelectorAll(".block");
+const line = document.getElementById("line");
+const gameArea = document.getElementById("gameArea");
+
 updateSelection();
 
-// CLICK SELECT
 blocks.forEach((block, index) => {
-  block.addEventListener("click", () => {
+  block.onclick = () => {
     selected = index;
     updateSelection();
-  });
+  };
 });
 
 function updateSelection() {
@@ -146,22 +153,14 @@ function updateSelection() {
   line.style.background = colors[selected];
 }
 
-// SPEED
+/* 🐢 SMOOTH SPEED (gradual increase) */
 function getSpeed() {
-  if (score < 5) return 3;
-  if (score < 15) return 6;
-  return 10;
+  return 2 + (score * 0.2); 
+  // starts slow (2) and increases slowly
 }
-
-// PAUSE
-document.getElementById("pauseBtn").onclick = () => {
-  paused = !paused;
-  document.getElementById("pauseBtn").innerText = paused ? "Resume" : "Pause";
-};
 
 // BALL
 function createBall() {
-  if (paused) return;
 
   let ball = document.createElement("div");
   let colorIndex = Math.floor(Math.random() * 4);
@@ -169,43 +168,68 @@ function createBall() {
   ball.classList.add("ball");
   ball.style.background = colors[colorIndex];
 
-  let rect = line.getBoundingClientRect();
-  let x = Math.random() * (rect.width - 20) + rect.left;
-
+  let x = Math.random() * (gameArea.clientWidth - 20);
   ball.style.left = x + "px";
   ball.style.top = "0px";
 
-  document.body.appendChild(ball);
+  gameArea.appendChild(ball);
 
   let fall = setInterval(() => {
-    if (paused) return;
-
-    let top = parseInt(ball.style.top);
+    let top = parseFloat(ball.style.top);
     ball.style.top = top + getSpeed() + "px";
 
-    if (top >= rect.top - 10) {
+    let lineTop = line.offsetTop;
+
+    if (top >= lineTop - 10) {
       clearInterval(fall);
 
       if (colorIndex === selected) {
         score++;
         document.getElementById("score").innerText = score;
-
-        if (score > highScore) {
-          highScore = score;
-          localStorage.setItem("highScore", highScore);
-          document.getElementById("highScore").innerText = highScore;
-        }
-
         ball.remove();
       } else {
-        alert("Game Over! Score: " + score);
-        location.reload();
+        gameOver();
       }
     }
   }, 20);
 }
 
-setInterval(createBall, 800);
+setInterval(createBall, 900);
+
+// GAME OVER
+function gameOver() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem("highScore", highScore);
+    document.getElementById("highScore").innerText = highScore;
+
+    let name = prompt("Enter name:");
+    if (!name) name = "Player";
+
+    push(ref(db, "scores"), { name, score: highScore });
+  }
+
+  alert("Game Over: " + score);
+  location.reload();
+}
+
+// LEADERBOARD
+onValue(ref(db, "scores"), snapshot => {
+  let data = snapshot.val();
+  let html = "";
+
+  if (data) {
+    let arr = Object.values(data);
+    arr.sort((a,b) => b.score - a.score);
+
+    arr.slice(0,10).forEach((d,i) => {
+      html += `<div class="item">#${i+1} ${d.name} <span>${d.score}</span></div>`;
+    });
+  }
+
+  document.getElementById("list").innerHTML = html;
+});
+
 </script>
 
 </body>
