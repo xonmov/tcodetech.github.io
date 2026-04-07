@@ -223,10 +223,10 @@ body {
 </div>
 
 <div id="helpPopup" class="popup">
-  <h3>How to Play</h3>
-  <p>Tap correct color before ball hits bar</p>
-  <p>Tap screen to pause/resume</p>
-  <button class="btn" id="helpOk">OK</button>
+    <h3>How to Play</h3>
+    <p>Tap correct color before ball hits bar</p>
+    <p>Tap screen to pause/resume</p>
+    <button class="btn" id="helpOk">OK</button>
 </div>
 
 <script type="module">
@@ -237,7 +237,13 @@ import { getDatabase, ref, push, onValue, get, remove, onDisconnect, set } from 
 const app = initializeApp({ apiKey:"YOUR_API_KEY", databaseURL:"https://tcodetech-default-rtdb.firebaseio.com" });
 const db = getDatabase(app);
 
+
+
 let wasPausedBeforePopup = false;
+let myUserId = Math.random().toString(36).substring(2);
+let onlineStarted = false;
+startOnlineTracking(); // ✅ EVERY USER WILL BE COUNTED
+
 
 let hits = 0;
 let misses = 0;
@@ -555,7 +561,10 @@ highScoreLabel.onclick = () => {
 
     document.getElementById("adminPanel").style.display = "block";
 
-    startOnlineTracking();
+    onValue(ref(db, "onlineUsers"), (snap) => {
+  let count = snap.exists() ? Object.keys(snap.val()).length : 0;
+  document.getElementById("onlineCount").innerText = count;
+});
   }
 };
 
@@ -564,18 +573,13 @@ highScoreLabel.onclick = () => {
 
 function startOnlineTracking(){
 
-  const onlineRef = ref(db, "onlineUsers");
+  if(onlineStarted) return; // 🔥 prevent duplicate
+  onlineStarted = true;
 
-  const userId = Math.random().toString(36).substring(2);
-  const myRef = ref(db, "onlineUsers/" + userId);
+  const myRef = ref(db, "onlineUsers/" + myUserId);
 
   set(myRef, true);
   onDisconnect(myRef).remove();
-
-  onValue(onlineRef, (snap) => {
-    let count = snap.exists() ? Object.keys(snap.val()).length : 0;
-    document.getElementById("onlineCount").innerText = count;
-  });
 }
 
 </script>
